@@ -94,7 +94,6 @@ def save_bow_to_postgres(url, batch_hour, bow_dicts):
             INSERT INTO news_bows (url, date, bow)
             VALUES (%s, %s, %s)
         """, (url, batch_hour, psycopg2.extras.Json(bow_dicts)))
-        logging.info(f"[BoW сохранён] URL: {url}")
     except Exception as e:
         logging.error(f"[ERROR][POSTGRES][BOW] {e}")
 

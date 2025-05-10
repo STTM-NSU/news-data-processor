@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 from natasha import Segmenter, NewsEmbedding, NewsMorphTagger, Doc, MorphVocab
 from nltk.corpus import stopwords
 
-
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 nltk.download('punkt')
@@ -26,7 +25,6 @@ emb = NewsEmbedding()
 morph_tagger = NewsMorphTagger(emb)
 morph_vocab = MorphVocab()
 
-
 load_dotenv()
 
 with open('config.yaml', 'r', encoding='utf-8') as f:
@@ -34,7 +32,6 @@ with open('config.yaml', 'r', encoding='utf-8') as f:
 
 base_channel = config.get('redisChannelName', 'scrapper')
 partition_count = config.get('partitionsCount', 5)
-
 
 try:
     conn = psycopg2.connect(
@@ -50,7 +47,6 @@ except Exception as e:
     logging.error(f"Ошибка подключения к PostgreSQL: {e}")
     raise
 
-
 try:
     r = redis.Redis(
         host=os.getenv('REDIS_HOST'),
@@ -62,7 +58,6 @@ try:
 except Exception as e:
     logging.error(f"Ошибка подключения к Redis: {e}")
     raise
-
 
 
 def preprocess(text):
@@ -82,10 +77,8 @@ def preprocess(text):
     return lemmas
 
 
-
 def bag_of_words(corpus_tokens):
     return [Counter(tokens) for tokens in corpus_tokens]
-
 
 
 def save_bow_to_postgres(url, batch_hour, bow_dicts):
@@ -104,7 +97,7 @@ def set_done_to_postgres(date, scraped_count, scraped_time):
             INSERT INTO news_done (date, scraped_count, scraped_time)
             VALUES (%s, %s, %s)
         """, (date, scraped_count, scraped_time))
-        logging.info(f"[День завершён] {date} - Записано {scraped_count} новостей за {scraped_time} секунд.")
+        logging.info(f"[День завершён] {date} - Записано {scraped_count} новостей за {scraped_time}.")
     except Exception as e:
         logging.error(f"[ERROR][POSTGRES][DONE] {e}")
 
@@ -127,6 +120,21 @@ def handle_text(message):
         logging.error(f"[ERROR][TEXT] {e}")
 
 
+def parse_scraped_time(scraped_time_str):
+    # Match patterns for minutes (m) and seconds (s)
+    pattern = re.compile(r'(?:(\d+)m)?(?:(\d*\.?\d+)s)?')
+    match = pattern.match(scraped_time_str)
+
+    if match:
+        minutes = match.group(1)
+        seconds = match.group(2)
+
+        minutes = int(minutes) if minutes else 0
+        seconds = float(seconds) if seconds else 0.0
+
+        return timedelta(minutes=minutes, seconds=seconds)
+    else:
+        raise ValueError(f"Invalid time format: {scraped_time_str}")
 def handle_done(message):
     if message['type'] != 'message':
         return
@@ -136,8 +144,7 @@ def handle_done(message):
         dt = datetime.fromisoformat(done_str)
         scraped_count = data.get('count')
         scraped_time_str = data.get('duration')
-        scraped_time = timedelta(seconds=float(scraped_time_str.rstrip('s')))
-
+        scraped_time = parse_scraped_time(scraped_time_str)
         set_done_to_postgres(dt, scraped_count, scraped_time)
 
     except Exception as e:
